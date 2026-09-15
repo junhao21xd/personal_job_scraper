@@ -1,0 +1,7 @@
+pandas==2.3.3
+python-dotenv==1.2.3
+python-jobspy==1.1.82
+apify-client==3.1.0
+flashtext==2.7
+openpyxl==3.1.5
+streamlit==1.63.0

@@ -1,0 +1,19 @@
+# Secrets
+.env
+
+# Data files (personal tracker data, scraped contact info)
+*.xlsx
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+
+# Docs — everything except README.md
+*.md
+!README.md
+# !resume examples.md
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
