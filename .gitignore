@@ -9,10 +9,10 @@
 *.db-journal
 *.csv
 
-# Docs — everything except README.md
+# Docs — everything except README.md and the sanitized resume-format reference
 *.md
 !README.md
-# !resume examples.md
+!resume_examples.md
 
 # Python
 __pycache__/
