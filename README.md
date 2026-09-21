@@ -18,33 +18,21 @@ Built as a personal tool for my own job search, not a hosted scraping service �
 - **Classifies** each listing via regex/FlashText: minimum years of experience, seniority
   (title-based), visa/work-pass eligibility, and five tech-category tags (agentic tooling,
   AI/LLM, data engineering, data science, software engineering).
-- **Tracks** everything in a single local store you own — either an Excel workbook or a SQLite
-  database, browsed through an interactive Streamlit dashboard with a search bar, faceted
-  filters, and (in the SQLite version) an editable grid so you can update application status
-  directly in the UI.
+- **Tracks** everything in a single local SQLite database you own, browsed through an interactive
+  Streamlit dashboard with a search bar, faceted filters, and an editable grid so you can update
+  application status directly in the UI.
 - **Ranks** tracked jobs by fit against a resume, combining semantic and lexical (BM25) similarity 
   via Reciprocal Rank Fusion — see [Resume matching](#resume-matching) below.
 
 ## Project structure
 
-Two parallel implementations of the same pipeline exist side by side:
-
-| | Excel-based (original) | SQLite-based (current) |
-|---|---|---|
-| Daily scrape script | `job_scraper_daily.py` | `job_scraper_daily_sql.py` |
-| Dashboard | `job_viewer.py` | `job_viewer_sql.py` |
-| Storage | `my_job_tracker.xlsx` + two raw per-source `.xlsx` dumps | `job_tracker.db` (one file, three tables) |
-
-The SQLite version exists because the Excel version has no safe way to edit tracker data from
-the dashboard — Excel's exclusive file lock makes concurrent read/write from more than one
-process fragile. SQLite in WAL mode allows the daily scrape and the dashboard to read/write
-concurrently without that problem, and the dashboard gained an editable grid as a result.
-`migrate_to_sqlite.py` is a one-time (safely re-runnable) script that loads the Excel version's
-data into the SQLite version.
-
-`Job_scraper.ipynb` is the original exploratory notebook — both sources, the merge, tagging, and
-the Excel writes, all in one place. It's the easiest way to see the whole pipeline end to end,
-but each run overwrites its output rather than appending, unlike the two daily scripts above.
+- `src/job_scraper_daily_sql.py` — the daily scrape script. Scrapes both sources, tags/normalizes,
+  and upserts into `job_tracker.db` (SQLite, WAL mode) without overwriting existing rows, so
+  manual edits (status, notes) made in the dashboard always survive a re-scrape.
+- `src/job_viewer_sql.py` — the Streamlit dashboard: search, faceted filters, and an editable
+  grid for updating application status directly in the UI.
+- `src/migrate_to_sqlite.py` — a one-time, safely re-runnable utility for importing data from an
+  older Excel-based tracker. Not needed for a fresh setup.
 
 `classification_benchmark.ipynb` benchmarks the regex/FlashText tagging above against three
 zero-shot ML alternatives (two Sentence-Transformers and an NLI model) on a hand-labeled sample of
@@ -62,20 +50,17 @@ Create a `.env` file in the project root with an [Apify](https://console.apify.c
 APIFY_TOKEN=your_token_here
 ```
 
-Run the pipeline once (either version) **from the repo root** — scripts reference `.env` and data
-files as relative paths that resolve against the current working directory, not the script's own
-location:
+Run the pipeline once **from the repo root** — scripts reference `.env` and data files as
+relative paths that resolve against the current working directory, not the script's own location:
 
 ```
-python src/job_scraper_daily_sql.py   # SQLite version
-python src/job_scraper_daily.py       # Excel version
+python src/job_scraper_daily_sql.py
 ```
 
 Then browse the results:
 
 ```
-streamlit run src/job_viewer_sql.py   # SQLite version, editable
-streamlit run src/job_viewer.py       # Excel version, read-only
+streamlit run src/job_viewer_sql.py
 ```
 
 ## Resume matching
