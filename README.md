@@ -22,15 +22,17 @@ Built as a personal tool for my own job search, not a hosted scraping service �
   Streamlit dashboard with a search bar, faceted filters, and an editable grid so you can update
   application status directly in the UI.
 - **Ranks** tracked jobs by fit against a resume, combining semantic and lexical (BM25) similarity 
-  via Reciprocal Rank Fusion — see [Resume matching](#resume-matching) below.
+  via Reciprocal Rank Fusion, with scores written back into the tracker so they show up directly
+  in the dashboard — see [Resume matching](#resume-matching) below.
 
 ## Project structure
 
 - `src/job_scraper_daily_sql.py` — the daily scrape script. Scrapes both sources, tags/normalizes,
   and upserts into `job_tracker.db` (SQLite, WAL mode) without overwriting existing rows, so
   manual edits (status, notes) made in the dashboard always survive a re-scrape.
-- `src/job_viewer_sql.py` — the Streamlit dashboard: search, faceted filters, and an editable
-  grid for updating application status directly in the UI.
+- `src/job_viewer_sql.py` — the Streamlit dashboard: search, faceted filters, an editable grid for
+  updating application status directly in the UI, and — once `resume_match_hybrid.ipynb` has been
+  run at least once — each job's resume-fit score shown alongside it.
 - `src/migrate_to_sqlite.py` — a one-time, safely re-runnable utility for importing data from an
   older Excel-based tracker. Not needed for a fresh setup.
 
@@ -75,8 +77,13 @@ independent signals via Reciprocal Rank Fusion:
 - **Lexical** — [`bm25s`](https://github.com/xhluca/bm25s) matches the resume against the job
   description corpus for exact keyword/tool-name overlap that embeddings alone can under-reward.
 
-Read-only — writes a ranked CSV, never modifies `job_tracker.db`. There's no labeled "good fit"
-ground truth for this, so the ranking is a relative signal to sanity-check by eye, not a calibrated score.
+Writes its ranked output to `job_tracker.db`'s `resume_match_scores` table (replaced in full each
+run, not merged in — BM25's scoring is relative to whatever the current candidate pool is, so an
+old score isn't comparable to a freshly-computed one), which the dashboard reads to show fit
+scores directly in the grid. The candidate pool is bounded to jobs scraped within a recent window
+(`LOOKBACK_DAYS`, default 30 days) so the embedding step doesn't slow down as the tracker
+accumulates history. There's no labeled "good fit" ground truth for this, so the ranking is a
+relative signal to sanity-check by eye, not a calibrated score.
 
 ## Responsible use
 
