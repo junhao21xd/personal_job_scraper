@@ -13,14 +13,38 @@ EDITABLE_COLS = [
 ]
 BOOL_COLS = ['is_expired', 'applied', 'is_agent', 'is_ai_llm', 'is_de', 'is_ds', 'is_swe']
 CONTEXT_COLS = ['title', 'company', 'location', 'source', 'work_arrangement']
-EDITOR_COLS = CONTEXT_COLS + EDITABLE_COLS
+# From resume_match_hybrid.ipynb's resume_match_scores table (LEFT JOINed below) -- read-only,
+# same as CONTEXT_COLS, and absent (all-None) if that notebook has never been run.
+MATCH_COLS = ['rrf_score', 'semantic_score', 'bm25_score', 'top_matching_chunks']
+EDITOR_COLS = CONTEXT_COLS + EDITABLE_COLS + MATCH_COLS
+
+
+def table_exists(conn, name):
+    cur = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (name,))
+    return cur.fetchone() is not None
 
 
 @st.cache_data
 def load_data(path):
     conn = sqlite3.connect(path)
     conn.execute("PRAGMA journal_mode=WAL;")
-    df = pd.read_sql("SELECT * FROM jobs", conn)
+    if table_exists(conn, "resume_match_scores"):
+        df = pd.read_sql(
+            """
+            SELECT jobs.*, resume_match_scores.rrf_score, resume_match_scores.semantic_score,
+                   resume_match_scores.bm25_score, resume_match_scores.top_matching_chunks,
+                   resume_match_scores.computed_at AS match_computed_at
+            FROM jobs
+            LEFT JOIN resume_match_scores ON jobs.job_id = resume_match_scores.job_id
+            """,
+            conn,
+        )
+    else:
+        # resume_match_hybrid.ipynb hasn't been run against this DB yet -- degrade gracefully
+        # (empty fit-score columns, no crash), same spirit as how gold_* is handled.
+        df = pd.read_sql("SELECT * FROM jobs", conn)
+        for col in MATCH_COLS + ["match_computed_at"]:
+            df[col] = None
     conn.close()
     df["min_years_exp"] = pd.to_numeric(df["min_years_exp"], errors="coerce")
     df["date_scraped"] = pd.to_datetime(df["date_scraped"], errors="coerce")
@@ -163,7 +187,7 @@ editor_snapshot = filtered.set_index("job_id")[EDITOR_COLS].copy()
 edited = st.data_editor(
     editor_snapshot,
     key="editor",
-    disabled=CONTEXT_COLS,
+    disabled=CONTEXT_COLS + MATCH_COLS,
     hide_index=False,
     width="stretch",
 )
